@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "MarketBar Alerts",
+    "slug": "marketbar-alerts",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0c0e13"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.marketbar.alerts"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0c0e13"
+      },
+      "package": "com.marketbar.alerts"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#34d399"
+        }
+      ]
+    ]
+  }
+}
