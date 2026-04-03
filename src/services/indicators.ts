@@ -1,22 +1,30 @@
 // ─── Technical Indicators ───────────────────────────────────────────
 // Pure functions for RSI, MACD, Fibonacci, momentum divergence.
-// All calculations happen client-side on sparkline/price data.
+// Aligned with AlgoQ Trading Engine v1.0 rulebook.
 
-// ─── RSI (Relative Strength Index) ─────────────────────────────────
+// ─── RSI (Wilder's Smoothing — industry standard) ──────────────────
 export function calculateRSI(prices: number[], period = 14): number | null {
   if (prices.length < period + 1) return null;
 
-  let gains = 0;
-  let losses = 0;
-
-  for (let i = prices.length - period; i < prices.length; i++) {
+  // First RSI: simple average for initial seed
+  let avgGain = 0;
+  let avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
     const diff = prices[i] - prices[i - 1];
-    if (diff > 0) gains += diff;
-    else losses -= diff;
+    if (diff > 0) avgGain += diff;
+    else avgLoss -= diff;
   }
+  avgGain /= period;
+  avgLoss /= period;
 
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
+  // Wilder's smoothing for remaining data
+  for (let i = period + 1; i < prices.length; i++) {
+    const diff = prices[i] - prices[i - 1];
+    const gain = diff > 0 ? diff : 0;
+    const loss = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+  }
 
   if (avgLoss === 0) return 100;
   const rs = avgGain / avgLoss;
@@ -65,7 +73,6 @@ export function calculateMACD(
   const signalLine = signalEMA[current];
   const histogram = macdLine - signalLine;
 
-  // Detect crossover
   let crossover: 'bullish' | 'bearish' | 'none' = 'none';
   if (prev >= 0) {
     const prevMacd = macdValues[prev];
@@ -107,7 +114,7 @@ export function isNearFibLevel(
   currentPrice: number,
   prices: number[],
   targetRatio: number,
-  tolerance = 0.005 // 0.5% proximity
+  tolerance = 0.005
 ): boolean {
   const fibs = calculateFibLevels(prices);
   if (!fibs) return false;
@@ -118,7 +125,7 @@ export function isNearFibLevel(
   return diff <= tolerance;
 }
 
-// ─── Volume Spike ───────────────────────────────────────────────────
+// ─── Volume Spike (2× average — per engine rulebook) ────────────────
 export function isVolumeSpike(volumes: number[], multiplier = 2): boolean {
   if (volumes.length < 5) return false;
   const recent = volumes.slice(-5, -1);
@@ -128,8 +135,6 @@ export function isVolumeSpike(volumes: number[], multiplier = 2): boolean {
 }
 
 // ─── Momentum Divergence ────────────────────────────────────────────
-// Price making new highs but RSI making lower highs (bearish divergence)
-// Price making new lows but RSI making higher lows (bullish divergence)
 export type DivergenceType = 'bullish' | 'bearish' | 'none';
 
 export function detectMomentumDivergence(prices: number[]): DivergenceType {
@@ -155,6 +160,16 @@ export function detectMomentumDivergence(prices: number[]): DivergenceType {
   if (priceLow2 < priceLow1 && rsi2 > rsi1 + 3) return 'bullish';
 
   return 'none';
+}
+
+// ─── Funding Rate Alert (per engine rulebook thresholds) ────────────
+export type FundingSignal = 'extreme_long' | 'heavy_long' | 'squeeze_risk' | 'neutral';
+
+export function evaluateFundingRate(rate8h: number): FundingSignal {
+  if (rate8h >= 0.001) return 'extreme_long';   // >+0.1% — strong short signal
+  if (rate8h >= 0.0005) return 'heavy_long';     // >+0.05% — caution on longs
+  if (rate8h <= -0.0002) return 'squeeze_risk';  // <-0.02% — short squeeze potential
+  return 'neutral';
 }
 
 // ─── Evaluate Alert Condition ───────────────────────────────────────
@@ -195,6 +210,15 @@ export function evaluateCondition(
       return isNearFibLevel(currentPrice, sparkline, 0.618);
     case 'fib_786':
       return isNearFibLevel(currentPrice, sparkline, 0.786);
+    case 'volume_spike':
+      // Volume spike needs volume data — evaluate from sparkline price volatility as proxy
+      // (True volume spike detection requires volume array from API, not just sparkline)
+      if (sparkline.length < 10) return false;
+      const recent = sparkline.slice(-10);
+      const changes = recent.map((v, i) => i === 0 ? 0 : Math.abs(v - recent[i-1]) / recent[i-1]);
+      const avgChange = changes.slice(1, -1).reduce((a, b) => a + b, 0) / (changes.length - 2);
+      const lastChange = changes[changes.length - 1];
+      return lastChange > avgChange * 2.5; // price volatility spike as volume proxy
     case 'momentum_divergence': {
       const div = detectMomentumDivergence(sparkline);
       return div !== 'none';
