@@ -82,5 +82,5 @@ export const CONDITION_LABELS: Record<AlertCondition, { label: string; icon: str
 // For dev: your local MarketBar backend
 // For prod: replace with your deployed server URL
 export const API_BASE = __DEV__
-  ? 'http://localhost:3001/api'
+  ? 'https://marketbar.vercel.app/api'
   : 'https://your-server.com/api';
